@@ -33,8 +33,16 @@ Standard Execution
 3.	Open index.html in any modern web browser (Chrome, Firefox, Safari, Edge).
 4.	The "System Initialization" (Onboarding) screen will launch automatically.
 
-For Java/Web Server Environments
+Division of Work
 
+[Jithin.R]:
+Responsibilities: Core classes, business logic.
+Focus: Implementing the primary data structures, gamification algorithms (XP/Leveling), and state management.
+[C Saket Sasankamouli]:
+Responsibilities: Input/output, validation, report generation.
+Focus: Handling user inputs (forms), validating data entries, and generating visualizations (Charts/JSON export).
+
+For Java/Web Server Environments
 If deploying within a Java web container (e.g., Spring Boot, Tomcat):
 1.	Place the index.html file in your web server's static content directory (e.g., src/main/resources/static or WebContent).
 2.	Start your Java server.
