@@ -38,7 +38,7 @@ For Java/Web Server Environments
 If deploying within a Java web container (e.g., Spring Boot, Tomcat):
 1.	Place the index.html file in your web server's static content directory (e.g., src/main/resources/static or WebContent).
 2.	Start your Java server.
-3.	Access the application via http://localhost:<port>/index.html.
+3.	Access the application via [http://localhost:<port>/index.html.](https://saketsasanka30.github.io/Ascendfit/)
 
 Team Member Names
 •	C Saket Sasankamouli (R24EI012)
