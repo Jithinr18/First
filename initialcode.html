@@ -1,0 +1,1837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ascend Fit Tracker</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons (Used for elegant interface icons) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            /* Google Fit inspired Dark Theme Colors */
+            --accent-primary: #00BFA5; /* Vibrant Teal/Green */
+            --accent-secondary: #448AFF; /* Bright Blue (Heart Points) */
+            --dark-bg: #121212; /* Deeper Dark Mode Background */
+            --card-bg: #212121; /* Slightly lighter card/element background */
+            --text-color: #E0E0E0; 
+            --subtle-text: #A0A0A0; 
+            --divider-color: #383838;
+        }
+
+        /* Set custom font and background */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--dark-bg);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 10px;
+        }
+        
+        /* --- PROFESSIONAL SCROLLBAR STYLING --- */
+        #content-area::-webkit-scrollbar {
+            width: 8px;
+        }
+        #content-area::-webkit-scrollbar-thumb {
+            background-color: var(--accent-primary);
+            border-radius: 4px;
+            border: 2px solid var(--dark-bg);
+        }
+        #content-area::-webkit-scrollbar-track {
+            background: var(--dark-bg);
+        }
+        .app-container { scrollbar-color: var(--accent-primary) var(--dark-bg); }
+
+        /* Responsive Container */
+        .app-container {
+            width: 100%;
+            max-width: 400px; 
+            height: 90vh; 
+            background-color: var(--dark-bg);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.7);
+            border-radius: 24px; 
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        @media (min-width: 768px) {
+            .app-container {
+                max-width: 768px; 
+                height: 95vh;
+            }
+        }
+
+        /* Nav & Gauge Styles (Retained) */
+        .bottom-nav { background-color: var(--card-bg); }
+        .nav-button { color: var(--subtle-text); }
+        .nav-button.active { color: var(--text-color); }
+        .nav-button.active .icon { color: var(--accent-primary); }
+        .gauge-ring-bg { stroke: var(--divider-color); }
+        .gauge-ring-fill {
+            transition: stroke-dashoffset 1s ease-out;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+
+        /* System List Item Style */
+        .list-group-item {
+            padding: 12px 0;
+            cursor: pointer;
+            color: var(--text-color);
+            transition: background-color 0.1s;
+        }
+        .list-group-item:hover {
+            background-color: #333333;
+        }
+        .list-group-header {
+            color: var(--accent-secondary);
+            font-size: 0.9rem;
+            font-weight: 600;
+            padding: 12px 0 6px 0;
+        }
+        .input-field {
+            background-color: #333333;
+            border: 1px solid #444444;
+            color: var(--text-color);
+        }
+        #fab-log-activity {
+            box-shadow: 0 4px 12px rgba(0, 191, 165, 0.4);
+        }
+
+        /* --- VISUALIZATION CSS --- */
+        .water-fill {
+            transition: height 1s ease-in-out, fill 0.5s;
+            transform-origin: bottom;
+        }
+        .calorie-bar {
+            transition: width 0.5s ease-out, background-color 0.5s;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.5); /* Subtle shadow for depth */
+        }
+        .water-button {
+             transition: all 0.2s ease-in-out;
+             transform: scale(1.0);
+        }
+        .water-button:active {
+             transform: scale(0.95);
+        }
+        .trend-line {
+             transition: all 0.5s ease-out;
+             stroke: var(--accent-primary);
+             stroke-width: 2;
+             fill: none;
+        }
+        /* F17: Ring refinement */
+        .outer-ring { stroke: var(--accent-secondary); }
+        .inner-ring { stroke: var(--accent-primary); }
+        
+        /* --- MODAL CENTERING & BACKDROP FIX --- */
+        .modal-backdrop {
+            position: fixed; 
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 50; /* Higher Z-index to sit on top of everything */
+            backdrop-filter: blur(4px); /* Aesthetic blur */
+        }
+        
+        /* Close Button Style */
+        .close-btn-absolute {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            color: #A0A0A0;
+            cursor: pointer;
+            z-index: 60;
+        }
+        .close-btn-absolute:hover {
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100">
+
+    <div class="app-container">
+        <!-- Header (Clean, Borderless) -->
+        <header id="app-header" class="p-4 flex justify-between items-center bg-transparent sticky top-0 z-10">
+            <!-- App Name (Left Corner) -->
+            <h1 id="header-title" class="text-2xl font-bold tracking-wider text-white">Home</h1>
+            
+            <!-- User Placeholder (Right Corner) -->
+            <div id="user-avatar" class="w-9 h-9 rounded-full flex items-center justify-center border-2 border-accent-primary text-sm font-semibold text-white cursor-pointer transition-colors"
+                 onclick="window.renderTab('profile')" style="background-color: var(--card-bg);">
+                ?
+            </div>
+        </header>
+
+        <!-- Loading Indicator -->
+        <div id="loading" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 z-10">
+            <svg class="animate-spin h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="mt-4 text-sm text-gray-400">Loading data...</p>
+        </div>
+        
+        <!-- Modal Container (for activity logging/messages) -->
+        <!-- Added onclick to close when clicking backdrop -->
+        <div id="modal-container" class="hidden modal-backdrop" onclick="if(event.target === this) window.closeModal()">
+            <!-- Modal content goes here -->
+        </div>
+
+
+        <!-- Main Content Area for Tabs -->
+        <main id="content-area" class="flex-grow overflow-y-auto px-4 py-6" style="background-color: var(--dark-bg);">
+            <!-- Content will be injected here -->
+        </main>
+
+        <!-- Floating Action Button (FAB) for Journal/Tracker tab -->
+        <button id="fab-log-activity" onclick="window.openActivityModal('Workout')" 
+                class="hidden fixed right-6 bottom-20 w-14 h-14 rounded-full shadow-lg text-white z-10 hover:shadow-xl transition-all duration-200" 
+                style="background-color: var(--accent-primary);">
+            <i data-lucide="plus" class="w-8 h-8 mx-auto"></i>
+        </button>
+
+
+        <!-- Navigation Bar (Tabs) - Google Fit style (Simple icons, subtle background) -->
+        <nav class="bottom-nav flex justify-around p-2 border-t border-gray-700">
+            <button class="nav-button p-2 flex flex-col items-center text-xs" data-tab="home">
+                <i data-lucide="home" class="icon w-6 h-6 mb-1"></i>
+                <span>Home</span>
+            </button>
+            <button class="nav-button p-2 flex flex-col items-center text-xs" data-tab="journal">
+                <i data-lucide="calendar-check" class="icon w-6 h-6 mb-1"></i>
+                <span>Journal</span>
+            </button>
+            <button class="nav-button p-2 flex flex-col items-center text-xs" data-tab="browse">
+                <i data-lucide="list" class="icon w-6 h-6 mb-1"></i>
+                <span>Browse</span>
+            </button>
+            <button class="nav-button p-2 flex flex-col items-center text-xs" data-tab="profile">
+                <i data-lucide="user" class="icon w-6 h-6 mb-1"></i>
+                <span>Profile</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Firebase Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+
+        // Set Firebase logging level to Debug
+        setLogLevel('Debug');
+
+        // Global Firebase variables provided by the environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        
+        let firebaseConfig = {};
+        try {
+            firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        } catch (e) {
+            console.warn("Could not parse __firebase_config. Using empty config.");
+        }
+        
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        let persistenceEnabled = Object.keys(firebaseConfig).length > 0 && firebaseConfig.apiKey;
+        const LOCAL_STORAGE_KEY = 'ascendFitUserProfile'; 
+        const LOCAL_ACTIVITY_KEY = 'ascendFitActivityLog'; 
+        const LAST_RESET_DATE_KEY = 'ascendFitLastReset';
+        const MOCK_WEIGHT_TREND_KEY = 'ascendFitWeightTrend'; 
+
+        let db, auth, userId = null;
+        let isAuthReady = false;
+
+        // Default User Profile Data (Used if no data loaded)
+        let userProfile = {
+            name: 'Guest User',
+            age: 30,
+            heightCm: 175,
+            weightKg: 70,
+            goal: 'Maintain',
+            stepGoal: 10000,
+            waterGoal: 2.5,
+            calorieGoal: 2500, 
+            bmi: 22.86,
+            heartPointsGoal: 30,
+            // F6: New fields
+            gender: 'Male', 
+            dob: '1995-01-01', 
+            lastUpdated: Date.now() 
+        };
+        
+        let activityLog = []; 
+        let currentDayStats = {
+            steps: 0, heartPoints: 0, moveMinutes: 0, 
+            water: 0, caloriesBurned: 0, caloriesConsumed: 0
+        };
+        
+        // Mock weight data (New Feature 1)
+        let mockWeightTrend = [70, 70.1, 69.8, 70.5, 70.2, 70.3, 70]; 
+
+        // --- Core Metric Functions ---
+
+        const calculateBMI = (weightKg, heightCm) => {
+            if (!weightKg || !heightCm || heightCm === 0) return 0;
+            const heightM = heightCm / 100;
+            const bmiValue = weightKg / (heightM * heightM);
+            return parseFloat(bmiValue.toFixed(2));
+        };
+
+        const calculateOffset = (current, goal) => {
+            const circumference = 2 * Math.PI * 45; 
+            const percentage = Math.min(100, (current / goal) * 100);
+            return circumference - (circumference * percentage / 100);
+        }
+
+        const renderUserAvatar = () => {
+            const avatar = document.getElementById('user-avatar');
+            if (avatar) {
+                avatar.textContent = userProfile.name.charAt(0).toUpperCase();
+            }
+        };
+
+        const setHeaderTitle = (tabName) => {
+            const titleElement = document.getElementById('header-title');
+            let title = '';
+            
+            switch (tabName) {
+                case 'home': title = 'Home'; break;
+                case 'journal': title = 'Journal'; break;
+                case 'browse': title = 'Browse Health Data'; break;
+                case 'profile': title = 'Profile'; break;
+                case 'settings': title = 'Settings'; break;
+                default: title = 'Ascend Fit';
+            }
+
+            if (titleElement) {
+                titleElement.className = 'text-3xl font-normal text-white';
+                titleElement.textContent = title;
+            }
+        };
+        
+        // Correctly resets daily stats without deleting history
+        const checkAndResetDailyStats = () => {
+            const lastReset = localStorage.getItem(LAST_RESET_DATE_KEY);
+            const today = new Date().toDateString();
+
+            if (lastReset !== today) {
+                // Reset daily counters to zero
+                currentDayStats = { steps: 0, heartPoints: 0, moveMinutes: 0, water: 0, caloriesBurned: 0, caloriesConsumed: 0 };
+                
+                // Note: We do NOT delete activityLog here, so history is preserved.
+                // We just mark today as a new start for the counters.
+                localStorage.setItem(LAST_RESET_DATE_KEY, today);
+                return true;
+            }
+            return false;
+        };
+
+        const recalculateDailyStats = () => {
+            checkAndResetDailyStats();
+            
+            const today = new Date().toDateString();
+            
+            // Explicitly reset stats to 0 before calculating from today's logs
+             currentDayStats = { steps: 0, heartPoints: 0, moveMinutes: 0, water: 0, caloriesBurned: 0, caloriesConsumed: 0 };
+            
+
+            activityLog.forEach(log => {
+                const logDate = new Date(log.timestamp).toDateString();
+                
+                // Only sum logs that belong to TODAY
+                if (logDate !== today) {
+                    return; 
+                }
+
+                if (log.type === 'Water') {
+                    currentDayStats.water += log.amount || 0;
+                } else if (log.type === 'Meal') {
+                    currentDayStats.caloriesConsumed += log.calories || 0;
+                } else if (log.type === 'StepWalk') {
+                    currentDayStats.steps += log.steps || 0;
+                    currentDayStats.heartPoints += log.heartPoints || 0;
+                    currentDayStats.moveMinutes += log.duration || 0;
+                } else if (log.type === 'Vitals' || log.type === 'Weight' || log.type === 'Mood' || log.type === 'Cycle') {
+                    // Logs that don't directly impact daily activity sums
+                } else if (log.type !== 'Sleep') {
+                    // Logged Workout Activity (from modal)
+                    const duration = parseInt(log.duration);
+                    currentDayStats.caloriesBurned += log.calories || 0;
+                    currentDayStats.moveMinutes += duration || 0;
+                    
+                    let stepsPerMin = 80;
+                    if (log.type === 'Running' || log.type === 'Cycling') {
+                        stepsPerMin = 150;
+                    } 
+                    currentDayStats.steps += (duration * stepsPerMin) || 0;
+                    currentDayStats.heartPoints += Math.floor(duration / 10) || 0;
+                }
+            });
+            
+            // Removed artificial padding (1000 steps) to allow true 0 start on new day
+        };
+
+
+        // --- Interaction Functions (Exposed Globally) ---
+        
+        const generateMockWeightTrend = (currentWeight) => {
+            const trend = [];
+            for (let i = 0; i < 7; i++) {
+                const variance = (Math.random() * 0.4) - 0.2; 
+                trend.push(parseFloat((currentWeight + variance).toFixed(1)));
+            }
+            return trend;
+        };
+        
+        // --- DATA PERSISTENCE HELPERS ---
+        const saveToStorage = () => {
+            if (!persistenceEnabled) {
+                localStorage.setItem(LOCAL_ACTIVITY_KEY, JSON.stringify(activityLog));
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(userProfile));
+                // Trends key handled separately in weight logic
+            }
+        };
+
+        // --- MODAL FUNCTIONS ---
+        
+        window.closeModal = () => {
+            const modal = document.getElementById('modal-container');
+            modal.classList.add('hidden');
+            modal.innerHTML = '';
+            // Ensure UI is up to date after closing any modal
+            window.renderTab(currentTab);
+        };
+
+        window.openWalkModal = () => {
+             const modalContainer = document.getElementById('modal-container');
+            modalContainer.innerHTML = `
+                <div class="p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 relative" style="background-color: var(--card-bg);" onclick="event.stopPropagation()">
+                    <button onclick="window.closeModal()" class="close-btn-absolute"><i data-lucide="x" class="w-6 h-6"></i></button>
+                    <h3 class="text-xl font-bold text-white border-b pb-2 mb-4 border-gray-700">Record Walk</h3>
+                    <form onsubmit="window.handleWalkLog(event)">
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Duration (minutes)</label>
+                                <input type="number" name="duration" required min="1" value="30" class="input-field w-full px-4 py-2 rounded-lg text-white" placeholder="e.g., 30">
+                            </div>
+                        </div>
+                        <div class="mt-6 flex justify-between space-x-2">
+                            <button type="button" onclick="window.closeModal()" class="flex-1 py-2 rounded-lg font-bold bg-gray-600 hover:bg-gray-500 transition-colors">
+                                Cancel
+                            </button>
+                            <button type="submit" class="flex-1 py-2 rounded-lg font-bold hover:opacity-90 transition-opacity transform active:scale-95 duration-150"
+                                    style="background-color: var(--accent-secondary); color: var(--dark-bg);">
+                                Log Walk
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            modalContainer.classList.remove('hidden');
+            lucide.createIcons();
+        };
+
+        window.handleWalkLog = (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const duration = parseInt(form.elements.duration.value, 10);
+            
+            const stepsGained = duration * 90; 
+            const heartPoints = Math.floor(duration / 5);
+            
+            const newLog = {
+                type: 'StepWalk',
+                steps: stepsGained,
+                duration: duration,
+                heartPoints: heartPoints,
+                timestamp: Date.now()
+            };
+            
+            activityLog.unshift(newLog);
+            recalculateDailyStats(); 
+            saveToStorage();
+            
+            window.closeModal();
+        };
+        
+        window.openCalorieModal = () => {
+             const modalContainer = document.getElementById('modal-container');
+            modalContainer.innerHTML = `
+                <div class="p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 relative" style="background-color: var(--card-bg);" onclick="event.stopPropagation()">
+                    <button onclick="window.closeModal()" class="close-btn-absolute"><i data-lucide="x" class="w-6 h-6"></i></button>
+                    <h3 class="text-xl font-bold text-white border-b pb-2 mb-4 border-gray-700">Log Meal Calories</h3>
+                    <form onsubmit="window.handleCalorieLog(event)">
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Calories Consumed (Kcal)</label>
+                                <input type="number" name="calories" required min="1" class="input-field w-full px-4 py-2 rounded-lg text-white" placeholder="e.g., 650">
+                            </div>
+                        </div>
+                        <div class="mt-6 flex justify-between space-x-2">
+                            <button type="button" onclick="window.closeModal()" class="flex-1 py-2 rounded-lg font-bold bg-gray-600 hover:bg-gray-500 transition-colors">
+                                Cancel
+                            </button>
+                            <button type="submit" class="flex-1 py-2 rounded-lg font-bold hover:opacity-90 transition-opacity transform active:scale-95 duration-150"
+                                    style="background-color: #FFB300; color: var(--dark-bg);">
+                                Log Meal
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            modalContainer.classList.remove('hidden');
+            lucide.createIcons();
+        };
+
+        window.handleCalorieLog = (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const calories = parseInt(form.elements.calories.value, 10);
+            
+            const newLog = { type: 'Meal', calories: calories, timestamp: Date.now() };
+            activityLog.unshift(newLog);
+            recalculateDailyStats(); 
+            saveToStorage();
+            window.closeModal();
+        };
+        
+        window.openWaterModal = () => {
+             const modalContainer = document.getElementById('modal-container');
+            modalContainer.innerHTML = `
+                <div class="p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 relative" style="background-color: var(--card-bg);" onclick="event.stopPropagation()">
+                    <button onclick="window.closeModal()" class="close-btn-absolute"><i data-lucide="x" class="w-6 h-6"></i></button>
+                    <h3 class="text-xl font-bold text-white border-b pb-2 mb-4 border-gray-700">Log Water Intake</h3>
+                    <form onsubmit="window.handleWaterLog(event)">
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Water Amount (Liters)</label>
+                                <input type="number" name="amount" required min="0.1" step="0.1" value="0.5" class="input-field w-full px-4 py-2 rounded-lg text-white" placeholder="e.g., 0.5">
+                            </div>
+                        </div>
+                        <div class="mt-6 flex justify-between space-x-2">
+                            <button type="button" onclick="window.closeModal()" class="flex-1 py-2 rounded-lg font-bold bg-gray-600 hover:bg-gray-500 transition-colors">
+                                Cancel
+                            </button>
+                            <button type="submit" class="flex-1 py-2 rounded-lg font-bold hover:opacity-90 transition-opacity transform active:scale-95 duration-150"
+                                    style="background-color: #448AFF; color: var(--dark-bg);">
+                                Log Water
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            modalContainer.classList.remove('hidden');
+            lucide.createIcons();
+        };
+        
+        window.handleWaterLog = (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const amount = parseFloat(form.elements.amount.value);
+            
+            const newLog = { type: 'Water', amount: amount, timestamp: Date.now() };
+            activityLog.unshift(newLog);
+            recalculateDailyStats(); 
+            saveToStorage();
+            window.closeModal();
+        };
+
+        window.openSleepModal = () => {
+             const modalContainer = document.getElementById('modal-container');
+            modalContainer.innerHTML = `
+                <div class="p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 relative" style="background-color: var(--card-bg);" onclick="event.stopPropagation()">
+                    <button onclick="window.closeModal()" class="close-btn-absolute"><i data-lucide="x" class="w-6 h-6"></i></button>
+                    <h3 class="text-xl font-bold text-white border-b pb-2 mb-4 border-gray-700">Log Sleep (F1)</h3>
+                    <form onsubmit="window.handleSleepLog(event)">
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Duration (Hours)</label>
+                                <input type="number" name="duration" required min="1" max="15" step="0.1" value="8.0" class="input-field w-full px-4 py-2 rounded-lg text-white">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Quality Score (1-5)</label>
+                                <input type="number" name="quality" required min="1" max="5" value="4" class="input-field w-full px-4 py-2 rounded-lg text-white">
+                            </div>
+                        </div>
+                        <div class="mt-6 flex justify-between space-x-2">
+                            <button type="button" onclick="window.closeModal()" class="flex-1 py-2 rounded-lg font-bold bg-gray-600 hover:bg-gray-500 transition-colors">
+                                Cancel
+                            </button>
+                            <button type="submit" class="flex-1 py-2 rounded-lg font-bold hover:opacity-90 transition-opacity transform active:scale-95 duration-150"
+                                    style="background-color: #7E57C2; color: var(--dark-bg);">
+                                Log Sleep
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            modalContainer.classList.remove('hidden');
+            lucide.createIcons();
+        };
+
+        window.handleSleepLog = (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const duration = parseFloat(form.elements.duration.value);
+            const quality = parseInt(form.elements.quality.value, 10);
+            
+            const newLog = { type: 'Sleep', duration: duration, quality: quality, timestamp: Date.now() };
+            activityLog.unshift(newLog);
+            saveToStorage();
+            window.closeModal();
+            showMessage('Sleep Logged', `Logged ${duration} hours with a quality score of ${quality}/5.`);
+        };
+
+
+        window.openMoodModal = () => {
+             const modalContainer = document.getElementById('modal-container');
+            modalContainer.innerHTML = `
+                <div class="p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 relative" style="background-color: var(--card-bg);" onclick="event.stopPropagation()">
+                    <button onclick="window.closeModal()" class="close-btn-absolute"><i data-lucide="x" class="w-6 h-6"></i></button>
+                    <h3 class="text-xl font-bold text-white border-b pb-2 mb-4 border-gray-700">Log Mood (F9)</h3>
+                    <form onsubmit="window.handleMoodLog(event)">
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Select Mood</label>
+                                <select name="mood" required class="input-field w-full px-4 py-2 rounded-lg text-white">
+                                    <option value="Great">Great</option>
+                                    <option value="Good">Good</option>
+                                    <option value="Neutral">Neutral</option>
+                                    <option value="Stressed">Stressed</option>
+                                    <option value="Tired">Tired</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mt-6 flex justify-between space-x-2">
+                            <button type="button" onclick="window.closeModal()" class="flex-1 py-2 rounded-lg font-bold bg-gray-600 hover:bg-gray-500 transition-colors">
+                                Cancel
+                            </button>
+                            <button type="submit" class="flex-1 py-2 rounded-lg font-bold hover:opacity-90 transition-opacity transform active:scale-95 duration-150"
+                                    style="background-color: #7E57C2; color: var(--dark-bg);">
+                                Log Mood
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            modalContainer.classList.remove('hidden');
+            lucide.createIcons();
+        };
+
+        window.handleMoodLog = (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const mood = form.elements.mood.value;
+            
+            const newLog = { type: 'Mood', mood: mood, timestamp: Date.now() };
+            activityLog.unshift(newLog);
+            saveToStorage();
+            window.closeModal();
+            showMessage('Mood Logged', `Logged mood: ${mood}.`);
+        };
+        
+        window.openWeightModal = () => {
+             const modalContainer = document.getElementById('modal-container');
+            modalContainer.innerHTML = `
+                <div class="p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 relative" style="background-color: var(--card-bg);" onclick="event.stopPropagation()">
+                    <button onclick="window.closeModal()" class="close-btn-absolute"><i data-lucide="x" class="w-6 h-6"></i></button>
+                    <h3 class="text-xl font-bold text-white border-b pb-2 mb-4 border-gray-700">Log New Weight (F15)</h3>
+                    <form onsubmit="window.handleWeightLog(event)">
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Weight (kg)</label>
+                                <input type="number" name="weight" required min="10" step="0.1" value="${userProfile.weightKg}" class="input-field w-full px-4 py-2 rounded-lg text-white">
+                            </div>
+                        </div>
+                        <div class="mt-6 flex justify-between space-x-2">
+                            <button type="button" onclick="window.closeModal()" class="flex-1 py-2 rounded-lg font-bold bg-gray-600 hover:bg-gray-500 transition-colors">
+                                Cancel
+                            </button>
+                            <button type="submit" class="flex-1 py-2 rounded-lg font-bold hover:opacity-90 transition-opacity transform active:scale-95 duration-150"
+                                    style="background-color: var(--accent-primary); color: var(--dark-bg);">
+                                Log Weight
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            modalContainer.classList.remove('hidden');
+            lucide.createIcons();
+        };
+
+        window.handleWeightLog = (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const newWeight = parseFloat(form.elements.weight.value);
+            
+            userProfile.weightKg = newWeight;
+            userProfile.bmi = calculateBMI(newWeight, userProfile.heightCm);
+            userProfile.lastUpdated = Date.now();
+            
+            mockWeightTrend.shift(); // Remove oldest entry
+            mockWeightTrend.push(newWeight); // Add new entry
+            localStorage.setItem(MOCK_WEIGHT_TREND_KEY, JSON.stringify(mockWeightTrend));
+            
+            const newLog = { type: 'Weight', weight: newWeight, timestamp: Date.now() };
+            activityLog.unshift(newLog);
+            saveToStorage();
+            
+            window.closeModal();
+            showMessage('Weight Updated', `New weight: ${newWeight} kg.`);
+        };
+
+        window.openActivityGoalModal = () => {
+             const modalContainer = document.getElementById('modal-container');
+            modalContainer.innerHTML = `
+                <div class="p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 relative" style="background-color: var(--card-bg);" onclick="event.stopPropagation()">
+                    <button onclick="window.closeModal()" class="close-btn-absolute"><i data-lucide="x" class="w-6 h-6"></i></button>
+                    <h3 class="text-xl font-bold text-white border-b pb-2 mb-4 border-gray-700">Set Activity Goals (F8)</h3>
+                    <form onsubmit="window.handleActivityGoalLog(event)">
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Daily Steps</label>
+                                <input type="number" name="stepGoal" required min="1000" step="100" value="${userProfile.stepGoal}" class="input-field w-full px-4 py-2 rounded-lg text-white">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Heart Points</label>
+                                <input type="number" name="hpGoal" required min="10" step="5" value="${userProfile.heartPointsGoal}" class="input-field w-full px-4 py-2 rounded-lg text-white">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Calorie Goal</label>
+                                <input type="number" name="calorieGoal" required min="1000" step="100" value="${userProfile.calorieGoal}" class="input-field w-full px-4 py-2 rounded-lg text-white">
+                            </div>
+                        </div>
+                        <div class="mt-6 flex justify-between space-x-2">
+                            <button type="button" onclick="window.closeModal()" class="flex-1 py-2 rounded-lg font-bold bg-gray-600 hover:bg-gray-500 transition-colors">
+                                Cancel
+                            </button>
+                            <button type="submit" class="flex-1 py-2 rounded-lg font-bold hover:opacity-90 transition-opacity transform active:scale-95 duration-150"
+                                    style="background-color: var(--accent-primary); color: var(--dark-bg);">
+                                Save Goals
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            modalContainer.classList.remove('hidden');
+            lucide.createIcons();
+        };
+
+        window.handleActivityGoalLog = (e) => {
+            e.preventDefault();
+            const form = e.target;
+            
+            userProfile.stepGoal = parseInt(form.elements.stepGoal.value, 10);
+            userProfile.heartPointsGoal = parseInt(form.elements.hpGoal.value, 10);
+            userProfile.calorieGoal = parseInt(form.elements.calorieGoal.value, 10);
+            userProfile.lastUpdated = Date.now();
+            
+            saveToStorage();
+            window.closeModal();
+            showMessage('Goals Updated', 'Your daily activity targets have been saved.');
+        };
+
+        window.openActivityModal = (type = 'Activity') => {
+            const modalContainer = document.getElementById('modal-container');
+            modalContainer.innerHTML = `
+                <div class="p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 relative" style="background-color: var(--card-bg);" onclick="event.stopPropagation()">
+                    <button onclick="window.closeModal()" class="close-btn-absolute"><i data-lucide="x" class="w-6 h-6"></i></button>
+                    <h3 class="text-xl font-bold text-white border-b pb-2 mb-4 border-gray-700">Log New ${type}</h3>
+                    <form id="activityLogForm" onsubmit="window.handleActivityLog(event)">
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Activity Type</label>
+                                <select name="type" required class="input-field w-full px-4 py-2 rounded-lg text-white">
+                                    <option value="Running">Running</option>
+                                    <option value="Cycling">Cycling</option>
+                                    <option value="Strength Training">Strength Training</option>
+                                    <option value="Yoga">Yoga</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Duration (minutes)</label>
+                                <input type="number" name="duration" required min="1" class="input-field w-full px-4 py-2 rounded-lg text-white" placeholder="e.g., 30">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Calories Burned (Kcal)</label>
+                                <input type="number" name="calories" required min="1" class="input-field w-full px-4 py-2 rounded-lg text-white" placeholder="e.g., 350">
+                            </div>
+                        </div>
+                        <div class="mt-6 flex justify-between space-x-2">
+                            <button type="button" onclick="window.closeModal()" class="flex-1 py-2 rounded-lg font-bold bg-gray-600 hover:bg-gray-500 transition-colors">
+                                Cancel
+                            </button>
+                            <button type="submit" class="flex-1 py-2 rounded-lg font-bold hover:opacity-90 transition-opacity transform active:scale-95 duration-150"
+                                    style="background-color: var(--accent-primary); color: var(--dark-bg);">
+                                Log Activity
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            modalContainer.classList.remove('hidden');
+            lucide.createIcons();
+        };
+
+        window.handleActivityLog = (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const caloriesBurned = parseInt(form.elements.calories.value, 10);
+            const duration = parseInt(form.elements.duration.value, 10);
+            const type = form.elements.type.value;
+            
+            const newLog = {
+                type: type,
+                duration: `${duration} min`,
+                calories: caloriesBurned,
+                timestamp: Date.now()
+            };
+            
+            activityLog.unshift(newLog); 
+            recalculateDailyStats(); 
+            saveToStorage();
+
+            window.closeModal();
+            showMessage('Success', `${newLog.type} activity logged! Burned ${caloriesBurned} Kcal.`);
+        };
+
+        window.openVitalsModal = () => {
+             const modalContainer = document.getElementById('modal-container');
+            modalContainer.innerHTML = `
+                <div class="p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 relative" style="background-color: var(--card-bg);" onclick="event.stopPropagation()">
+                    <button onclick="window.closeModal()" class="close-btn-absolute"><i data-lucide="x" class="w-6 h-6"></i></button>
+                    <h3 class="text-xl font-bold text-white border-b pb-2 mb-4 border-gray-700">Log Vitals (F16)</h3>
+                    <form onsubmit="window.handleVitalsLog(event)">
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Blood Pressure (Systolic/Diastolic)</label>
+                                <input type="text" name="bp" required value="120/80" class="input-field w-full px-4 py-2 rounded-lg text-white">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Heart Rate (BPM)</label>
+                                <input type="number" name="hr" required min="30" max="200" value="75" class="input-field w-full px-4 py-2 rounded-lg text-white">
+                            </div>
+                        </div>
+                        <div class="mt-6 flex justify-between space-x-2">
+                            <button type="button" onclick="window.closeModal()" class="flex-1 py-2 rounded-lg font-bold bg-gray-600 hover:bg-gray-500 transition-colors">
+                                Cancel
+                            </button>
+                            <button type="submit" class="flex-1 py-2 rounded-lg font-bold hover:opacity-90 transition-opacity transform active:scale-95 duration-150"
+                                    style="background-color: #F06292; color: var(--dark-bg);">
+                                Log Vitals
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            modalContainer.classList.remove('hidden');
+            lucide.createIcons();
+        };
+
+        window.handleVitalsLog = (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const bp = form.elements.bp.value;
+            const hr = parseInt(form.elements.hr.value, 10);
+            
+            const newLog = { type: 'Vitals', bp: bp, hr: hr, timestamp: Date.now() };
+            activityLog.unshift(newLog);
+            saveToStorage();
+            window.closeModal();
+            showMessage('Vitals Logged', `Logged BP: ${bp}, HR: ${hr} BPM.`);
+        };
+        
+        /** Mock Cycle Tracking (Interactive) */
+        window.openCycleModal = () => {
+             const modalContainer = document.getElementById('modal-container');
+            modalContainer.innerHTML = `
+                <div class="p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 relative" style="background-color: var(--card-bg);" onclick="event.stopPropagation()">
+                    <button onclick="window.closeModal()" class="close-btn-absolute"><i data-lucide="x" class="w-6 h-6"></i></button>
+                    <h3 class="text-xl font-bold text-white border-b pb-2 mb-4 border-gray-700">Log Cycle</h3>
+                    <p class="text-gray-300 mb-4 text-sm">Track your cycle for better health insights.</p>
+                    <div class="space-y-2">
+                        <button onclick="window.handleCycleLog('Flow: Light')" class="w-full py-2 rounded bg-pink-900/50 text-pink-300 border border-pink-700 hover:bg-pink-900">Light Flow</button>
+                        <button onclick="window.handleCycleLog('Flow: Medium')" class="w-full py-2 rounded bg-pink-900/50 text-pink-300 border border-pink-700 hover:bg-pink-900">Medium Flow</button>
+                        <button onclick="window.handleCycleLog('Flow: Heavy')" class="w-full py-2 rounded bg-pink-900/50 text-pink-300 border border-pink-700 hover:bg-pink-900">Heavy Flow</button>
+                    </div>
+                    <button onclick="window.closeModal()" class="mt-4 w-full py-2 rounded text-gray-400 hover:text-white">Cancel</button>
+                </div>
+            `;
+            modalContainer.classList.remove('hidden');
+        };
+        
+        window.handleCycleLog = (detail) => {
+            const newLog = { type: 'Cycle', detail: detail, timestamp: Date.now() };
+            activityLog.unshift(newLog);
+            saveToStorage();
+            window.closeModal();
+            showMessage('Cycle Tracked', `Logged entry: ${detail}`);
+        }
+        
+        /** Mock BMI Info Modal (F20) */
+        window.showBmiInfo = () => {
+             showMessage("BMI Information (F20)", "Body Mass Index (BMI) is a measure of body fat based on your weight in relation to your height. It applies to most adults aged 20 and over. Categories: <br><br>Underweight: < 18.5<br>Healthy: 18.5 - 24.9<br>Overweight: 25 - 29.9<br>Obese: > 30", false);
+        };
+        
+        /** F10: Journal Filter Mock Functionality */
+        window.handleJournalFilter = (filterType) => {
+            showMessage("Journal Filter (F10)", `Filtering journal to show only logs of type: ${filterType}. (This is a mock interaction.)`, false);
+        };
+        
+        /** New Feature: Delete All Data and Reset App */
+        window.deleteAllData = () => {
+             const confirmationModal = document.getElementById('modal-container');
+             confirmationModal.innerHTML = `
+                 <div class="p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 relative" style="background-color: var(--card-bg);" onclick="event.stopPropagation()">
+                     <button onclick="window.closeModal()" class="close-btn-absolute"><i data-lucide="x" class="w-6 h-6"></i></button>
+                     <h3 class="text-xl font-bold text-red-500 border-b pb-2 mb-4 border-gray-700">CONFIRM HARD RESET</h3>
+                     <p class="text-gray-300">Are you absolutely sure you want to delete ALL local tracking data (profile, logs, trends)? This action cannot be undone.</p>
+                     <div class="mt-6 flex justify-between space-x-2">
+                         <button type="button" onclick="window.closeModal()" class="flex-1 py-2 rounded-lg font-bold bg-gray-600 hover:bg-gray-500 transition-colors">
+                             Cancel
+                         </button>
+                         <button type="button" onclick="window.performHardReset()" class="flex-1 py-2 rounded-lg font-bold hover:opacity-90 transition-opacity transform active:scale-95 duration-150"
+                                 style="background-color: #cf6679; color: var(--dark-bg);">
+                             Confirm Delete
+                         </button>
+                     </div>
+                 </div>
+             `;
+             confirmationModal.classList.remove('hidden');
+             lucide.createIcons();
+        };
+        
+        window.performHardReset = () => {
+            localStorage.removeItem(LOCAL_STORAGE_KEY);
+            localStorage.removeItem(LOCAL_ACTIVITY_KEY);
+            localStorage.removeItem(LAST_RESET_DATE_KEY);
+            localStorage.removeItem(MOCK_WEIGHT_TREND_KEY);
+            
+            activityLog = [];
+            currentDayStats = { steps: 0, heartPoints: 0, moveMinutes: 0, water: 0, caloriesBurned: 0, caloriesConsumed: 0 };
+            
+            // Reload to apply changes (simulate fresh install)
+            location.reload();
+        };
+        
+        /** New Feature: Edit Name Modal */
+        window.openEditNameModal = () => {
+             const modalContainer = document.getElementById('modal-container');
+            modalContainer.innerHTML = `
+                <div class="p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 relative" style="background-color: var(--card-bg);" onclick="event.stopPropagation()">
+                    <button onclick="window.closeModal()" class="close-btn-absolute"><i data-lucide="x" class="w-6 h-6"></i></button>
+                    <h3 class="text-xl font-bold text-white border-b pb-2 mb-4 border-gray-700">Edit Name</h3>
+                    <form onsubmit="window.handleNameUpdate(event)">
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Name</label>
+                                <input type="text" name="name" required value="${userProfile.name === 'Guest User' ? '' : userProfile.name}" placeholder="Enter your name" class="input-field w-full px-4 py-2 rounded-lg text-white">
+                            </div>
+                        </div>
+                        <div class="mt-6 flex justify-between space-x-2">
+                            <button type="button" onclick="window.closeModal()" class="flex-1 py-2 rounded-lg font-bold bg-gray-600 hover:bg-gray-500 transition-colors">
+                                Cancel
+                            </button>
+                            <button type="submit" class="flex-1 py-2 rounded-lg font-bold hover:opacity-90 transition-opacity transform active:scale-95 duration-150"
+                                    style="background-color: var(--accent-primary); color: var(--dark-bg);">
+                                Save Name
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            modalContainer.classList.remove('hidden');
+            lucide.createIcons();
+        };
+
+        window.handleNameUpdate = (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const newName = form.elements.name.value;
+            
+            userProfile.name = newName;
+            userProfile.lastUpdated = Date.now();
+            saveToStorage();
+            
+            window.closeModal();
+            showMessage('Profile Updated', `Name set to ${newName}.`);
+        };
+
+
+        const getProfileDocRef = () => {
+            if (!db || !userId) return null;
+            return doc(db, `artifacts/${appId}/users/${userId}/profile/user_data`);
+        };
+
+        // --- Firebase Initialization and Persistence Logic ---
+
+        const initializeFirebase = async () => {
+            try {
+                if (!persistenceEnabled) {
+                    
+                    // --- REMOVED RESET LOGIC TO ENSURE PERSISTENCE ---
+                    // Note: Version check removed to prevent clearing data on reload
+
+                    const localProfileData = localStorage.getItem(LOCAL_STORAGE_KEY);
+                    if (localProfileData) {
+                        try {
+                            userProfile = { ...userProfile, ...JSON.parse(localProfileData) };
+                            userProfile.bmi = calculateBMI(userProfile.weightKg, userProfile.heightCm);
+                        } catch (e) { console.error("Error parsing localStorage profile data:", e); }
+                    }
+                    
+                    const localActivityData = localStorage.getItem(LOCAL_ACTIVITY_KEY);
+                    if (localActivityData) {
+                        try {
+                            activityLog = JSON.parse(localActivityData);
+                            
+                        } catch (e) { console.error("Error parsing localStorage activity data:", e); }
+                    }
+                    
+                    const localWeightTrend = localStorage.getItem(MOCK_WEIGHT_TREND_KEY);
+                    if (localWeightTrend) {
+                        mockWeightTrend = JSON.parse(localWeightTrend);
+                    } else {
+                        mockWeightTrend = generateMockWeightTrend(userProfile.weightKg);
+                        localStorage.setItem(MOCK_WEIGHT_TREND_KEY, JSON.stringify(mockWeightTrend));
+                    }
+                    
+                    recalculateDailyStats(); 
+
+                    document.getElementById('loading').classList.add('hidden');
+                    isAuthReady = true;
+                    userId = crypto.randomUUID(); 
+                    renderUserAvatar();
+                    renderTab('home'); 
+                    
+                    // Auto-prompt for name if Guest
+                    if (userProfile.name === 'Guest User') {
+                        setTimeout(() => window.openEditNameModal(), 500);
+                    }
+                    
+                    return; 
+                }
+
+                // Firestore initialization
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                if (initialAuthToken) { await signInWithCustomToken(auth, initialAuthToken); } else { await signInAnonymously(auth); }
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        isAuthReady = true;
+                        document.getElementById('loading').classList.add('hidden');
+                        loadProfile();
+                        renderUserAvatar();
+                        renderTab('home');
+                    }
+                });
+
+            } catch (error) {
+                console.error("Firebase initialization failed:", error);
+                document.getElementById('loading').innerHTML = `<p class="text-red-500">Error loading app. Check console.</p>`;
+            }
+        };
+
+        const loadProfile = () => {
+            if (!isAuthReady || !userId || !persistenceEnabled) return;
+            const profileRef = getProfileDocRef();
+            if (!profileRef) return;
+
+            onSnapshot(profileRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    userProfile = { ...userProfile, ...docSnap.data() };
+                    userProfile.bmi = calculateBMI(userProfile.weightKg, userProfile.heightCm);
+                } else {
+                    saveProfile(userProfile);
+                }
+                renderUserAvatar(); 
+                renderTab(document.querySelector('.nav-button.active')?.dataset.tab || 'home');
+            }, (error) => {
+                console.error("Error setting up onSnapshot listener:", error);
+            });
+        };
+
+        const saveProfile = async (data) => {
+            data.bmi = calculateBMI(data.weightKg, data.heightCm);
+            userProfile = data; 
+            userProfile.lastUpdated = Date.now(); // F19
+            
+            mockWeightTrend = generateMockWeightTrend(userProfile.weightKg);
+            localStorage.setItem(MOCK_WEIGHT_TREND_KEY, JSON.stringify(mockWeightTrend));
+            
+            if (!isAuthReady || !userId) {
+                renderTab(currentTab);
+                return;
+            }
+
+            if (!persistenceEnabled) {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
+                renderUserAvatar();
+                renderTab(currentTab);
+                return;
+            }
+
+            const profileRef = getProfileDocRef();
+            if (!profileRef) return;
+
+            try {
+                await setDoc(profileRef, data, { merge: true });
+                renderUserAvatar();
+                renderTab(currentTab);
+            } catch (error) {
+                console.error("Error saving profile to Firestore:", error);
+            }
+        };
+
+
+        // --- UI Rendering Functions (Exposed Globally) ---
+
+        let currentTab = 'home';
+
+        const renderTab = (tabName) => {
+            const contentArea = document.getElementById('content-area');
+            const fab = document.getElementById('fab-log-activity');
+            contentArea.innerHTML = '';
+            currentTab = tabName;
+            
+            setHeaderTitle(tabName);
+            fab.classList.add('hidden');
+
+            switch (tabName) {
+                case 'home':
+                    contentArea.innerHTML = renderHome();
+                    break;
+                case 'journal':
+                    contentArea.innerHTML = renderJournal();
+                    fab.classList.remove('hidden'); 
+                    break;
+                case 'browse':
+                    contentArea.innerHTML = renderBrowse();
+                    break;
+                case 'profile':
+                    contentArea.innerHTML = renderProfile();
+                    attachProfileListeners();
+                    break;
+                case 'category_detail': 
+                    contentArea.innerHTML = renderCategoryDetail(window.activeCategory);
+                    break;
+                case 'settings':
+                    contentArea.innerHTML = renderSettings();
+                    break;
+                default:
+                    contentArea.innerHTML = renderHome();
+            }
+            lucide.createIcons();
+        };
+        window.renderTab = renderTab;
+
+
+        const renderHome = () => {
+            const hpOffset = calculateOffset(currentDayStats.heartPoints, userProfile.heartPointsGoal);
+            const stepsOffset = calculateOffset(currentDayStats.steps, userProfile.stepGoal);
+            
+            const waterProgressPct = Math.min(100, (currentDayStats.water / userProfile.waterGoal) * 100);
+            
+            const caloriesNet = currentDayStats.caloriesConsumed - currentDayStats.caloriesBurned;
+            const caloriesProgressPct = Math.min(100, (currentDayStats.caloriesConsumed / userProfile.calorieGoal) * 100);
+            const caloriesColor = caloriesNet <= userProfile.calorieGoal * 1.1 ? '#00BFA5' : '#FF5050'; 
+            
+            const moveGoal = 60;
+            const moveProgressPct = Math.min(100, (currentDayStats.moveMinutes / moveGoal) * 100);
+            const todayDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); // F10
+
+            
+            // F1: Weight Trend Graph Data 
+            const minWeight = Math.min(...mockWeightTrend);
+            const maxWeight = Math.max(...mockWeightTrend);
+            const range = maxWeight - minWeight === 0 ? 1 : maxWeight - minWeight;
+            const points = mockWeightTrend.map((w, i) => {
+                const x = i * 14.28 + 7; 
+                const y = 100 - ((w - minWeight) / range) * 100;
+                return `${x},${y}`;
+            }).join(' ');
+
+            // F14: Step Source Breakdown
+            const totalActiveSteps = activityLog.filter(log => log.type === 'StepWalk' && new Date(log.timestamp).toDateString() === new Date().toDateString()).reduce((sum, log) => sum + (log.steps || 0), 0);
+            const passiveSteps = currentDayStats.steps - totalActiveSteps;
+            
+            // F2: Weekly Trend Chart Mock Data
+            const mockWeeklySteps = [5000, 7000, 4500, 12000, 9000, 6500, currentDayStats.steps];
+
+            return `
+                <div class="space-y-5">
+                    <!-- F10: Date Display -->
+                    <p class="text-xs text-gray-500 mb-0 px-2">${todayDate} | Last Updated: ${new Date(activityLog[0]?.timestamp || Date.now()).toLocaleTimeString()}</p>
+                    
+                    <!-- Activity Rings & Metrics -->
+                    <div class="flex flex-col items-center pt-4">
+                        <div class="relative w-40 h-40">
+                            <svg width="100%" height="100%" viewBox="0 0 100 100" class="absolute">
+                                <!-- F17: Refined Rings -->
+                                <circle cx="50" cy="50" r="45" fill="none" class="gauge-ring-bg" stroke-width="6"/>
+                                <circle cx="50" cy="50" r="45" fill="none" class="outer-ring gauge-ring-fill" stroke-width="6"
+                                        stroke-linecap="round" style="stroke-dasharray: 283; stroke-dashoffset: ${hpOffset};"/>
+                                
+                                <circle cx="50" cy="50" r="38" fill="none" class="gauge-ring-bg" stroke-width="6"/>
+                                <circle cx="50" cy="50" r="38" fill="none" class="inner-ring gauge-ring-fill" stroke-width="6"
+                                        stroke-linecap="round" style="stroke-dasharray: 238.76; stroke-dashoffset: ${stepsOffset * 0.844};"/>
+                            </svg>
+                            <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                <p class="text-4xl font-extrabold text-white">${currentDayStats.heartPoints}</p>
+                                <p class="text-xs font-semibold text-gray-400 mt-0">/ ${userProfile.heartPointsGoal} HP</p>
+                            </div>
+                        </div>
+
+                        <!-- F14: Step Source Breakdown -->
+                        <div class="flex justify-center space-x-6 mt-4 text-center">
+                            <div>
+                                <p class="text-xl font-bold text-white">${currentDayStats.steps.toLocaleString()}</p>
+                                <p class="text-sm text-gray-400">Total Steps</p>
+                            </div>
+                            <div class="border-l border-r border-divider-color px-6">
+                                <p class="text-sm font-semibold text-green-400">${totalActiveSteps} <span class="text-xs font-normal text-gray-400">Active</span></p>
+                                <p class="text-sm font-semibold text-gray-400">${passiveSteps} <span class="text-xs font-normal">Passive</span></p>
+                            </div>
+                            <div>
+                                <button onclick="window.logStepWalked()" class="bg-gray-700 p-2 rounded-full hover:bg-gray-600 transition-colors">
+                                    <i data-lucide="footsteps" class="w-4 h-4 text-white"></i>
+                                </button>
+                                <p class="text-xs text-gray-400 mt-1">Quick Walk</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Record Walk Button (Interactive) - Now opens modal for duration (New Feature 2) -->
+                    <button onclick="window.openWalkModal()" 
+                            class="w-full py-3 rounded-xl font-bold text-lg shadow-xl transition-all duration-200 transform hover:scale-[1.01] active:scale-95" 
+                            style="background-color: var(--accent-secondary); color: var(--dark-bg);">
+                        <i data-lucide="walk" class="inline-block w-5 h-5 mr-2"></i> Record Walk Duration
+                    </button>
+
+
+                    <!-- Hydration & Calorie Visualizations (Interactive) -->
+                    <div class="grid grid-cols-2 gap-4">
+                        
+                        <!-- 1. Animated Hydration Card -->
+                        <div class="p-4 rounded-xl shadow-lg flex flex-col justify-between" style="background-color: var(--card-bg);">
+                            <div class="flex items-center justify-between mb-3">
+                                <p class="text-base font-semibold text-white">Hydration</p>
+                                <button onclick="window.openWaterModal()" class="w-6 h-6 rounded-full bg-blue-900 text-blue-400 flex items-center justify-center hover:bg-blue-800 water-button">
+                                    <i data-lucide="plus" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="relative h-32 flex justify-center items-end">
+                                
+                                <svg width="70" height="130" viewBox="0 0 50 100" class="absolute bottom-0">
+                                    <defs>
+                                        <linearGradient id="waterGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                            <stop offset="0%" style="stop-color:#448AFF; stop-opacity:1" />
+                                            <stop offset="100%" style="stop-color:#00BFFF; stop-opacity:0.6" />
+                                        </linearGradient>
+                                    </defs>
+                                    
+                                    <!-- Outer Bottle Outline (Glass Effect) -->
+                                    <path d="M 10 10 C 10 0, 40 0, 40 10 V 90 A 5 5 0 0 1 35 95 H 15 A 5 5 0 0 1 10 90 V 10 Z" stroke="#A0A0A0" stroke-width="1.5" fill="#21212100"/>
+                                    
+                                    <!-- Dynamic Water Fill (Starts at the bottom and fills up) -->
+                                    <rect x="11" y="94" width="28" height="0" rx="4"
+                                          class="water-fill"
+                                          style="height: ${waterProgressPct * 0.85}%; transform: translateY(-${waterProgressPct * 0.85}%); fill: url(#waterGradient);"/>
+                                          
+                                    <rect x="11" y="95" width="28" height="5" style="fill: var(--card-bg);"/>
+                                </svg>
+                                
+                                <p class="absolute top-1/3 text-lg font-bold text-white z-10">${currentDayStats.water.toFixed(1)} L</p>
+                                <p class="absolute bottom-2 text-xs text-gray-400 z-10">${waterProgressPct.toFixed(0)}% Goal</p>
+                            </div>
+                            <button onclick="window.adjustWater(0.5)" class="text-xs text-blue-400 pt-2 hover:underline">Log Quick 0.5L</button>
+                        </div>
+
+                        <!-- 2. Calorie Net Card (Enhanced Bar) -->
+                        <div class="p-4 rounded-xl shadow-lg flex flex-col justify-between" style="background-color: var(--card-bg);">
+                            <div class="flex items-center justify-between mb-2">
+                                <p class="text-base font-semibold text-white">Calorie Net</p>
+                                <button onclick="window.openCalorieModal()" class="w-6 h-6 rounded-full bg-red-900 text-red-400 flex items-center justify-center hover:bg-red-800 water-button">
+                                    <i data-lucide="plus" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                            
+                            <!-- F13: Detailed Calorie Breakdown -->
+                            <div class="space-y-1">
+                                <p class="text-xs text-gray-400">Consumed: ${currentDayStats.caloriesConsumed} Kcal</p>
+                                <p class="text-xs text-gray-400">Burned: ${currentDayStats.caloriesBurned} Kcal (F9: <span onclick="window.adjustCalories(-150)" class="text-green-400 cursor-pointer">Log Resting Burn</span>)</p>
+                            </div>
+                            
+                            <p class="text-3xl font-extrabold" style="color: ${caloriesColor};">${caloriesNet}</p>
+                            
+                            <div class="w-full bg-gray-700 rounded-lg h-5 mt-3 overflow-hidden">
+                                <div class="h-full calorie-bar rounded-lg" style="width: ${caloriesProgressPct}%; background-color: ${caloriesColor}; box-shadow: 0 0 8px ${caloriesColor}50;"></div>
+                            </div>
+                             <p class="text-xs text-gray-400 mt-1">Goal: ${userProfile.calorieGoal} Kcal</p>
+                             <button onclick="window.adjustCalories(300)" class="text-xs text-red-400 pt-2 hover:underline">Log Quick 300 Kcal</button>
+                        </div>
+                    </div>
+
+
+                    <!-- Weight & BMI Card (F1: Weight Trend Graph) -->
+                    <div class="p-4 rounded-xl shadow-lg" style="background-color: var(--card-bg);">
+                        <div class="flex justify-between items-center mb-2">
+                             <h3 class="text-xl font-medium text-gray-300">Weight Trend</h3>
+                             <button onclick="window.openWeightModal()" class="text-xs text-gray-400 hover:text-white"><i data-lucide="plus" class="w-4 h-4 inline mr-1"></i> Log Weight</button>
+                        </div>
+                        
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="text-3xl font-extrabold text-white">${userProfile.weightKg} <span class="text-sm text-gray-400">kg</span></p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-sm font-medium text-gray-300">BMI: ${calculateBMI(userProfile.weightKg, userProfile.heightCm)}</p>
+                                <span class="px-3 py-1 rounded-full text-xs font-semibold mt-1 inline-block" style="background-color: var(--accent-secondary); color: var(--dark-bg);">${userProfile.goal} Goal</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Weight Trend SVG -->
+                         <div class="mt-4 h-20 w-full">
+                            <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="w-full h-full">
+                                <polyline class="trend-line" points="${points}" stroke="var(--accent-primary)"/>
+                                <polyline points="${points}" style="fill: ${userProfile.weightKg > 70.2 ? '#FF505033' : '#00BFA533'}; stroke: none;"/>
+                            </svg>
+                        </div>
+                    </div>
+                    
+                    <!-- F2: Weekly Trend Chart (New Chart Feature) -->
+                    <div class="p-4 rounded-xl shadow-lg" style="background-color: var(--card-bg);">
+                        <h3 class="text-xl font-medium text-gray-300 mb-4">Weekly Step Trend (F2)</h3>
+                        <div class="flex justify-around items-end h-24">
+                            ${mockWeeklySteps.map((steps, i) => {
+                                const height = Math.min(100, (steps / userProfile.stepGoal) * 100) * 0.8;
+                                const isToday = i === mockWeeklySteps.length - 1;
+                                return `
+                                    <div class="w-5 rounded-t-full transition-all duration-500 flex flex-col items-center" 
+                                         style="height: 100%;">
+                                         <div class="w-full rounded-t-full transition-all duration-500" style="height: ${height}%; background-color: ${isToday ? 'var(--accent-primary)' : '#444444'};"></div>
+                                         <span class="text-xs text-gray-400 mt-1">${'SMTWTFS'[i]}</span>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                        <p class="text-xs text-gray-400 mt-2 text-center">Goal: ${userProfile.stepGoal.toLocaleString()} steps</p>
+                    </div>
+
+                    <!-- Move Minutes Progress Bar (F8) -->
+                    <div class="p-4 rounded-xl shadow-lg" style="background-color: var(--card-bg);">
+                        <div class="flex justify-between items-center mb-2">
+                             <h3 class="text-base font-semibold text-white">Move Minutes Goal</h3>
+                             <p class="text-sm text-gray-400">${currentDayStats.moveMinutes} / ${moveGoal} min</p>
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-2">
+                            <div class="h-2 rounded-full transition-all duration-500" style="width: ${moveProgressPct}%; background-color: var(--accent-primary);"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+        const renderJournal = () => {
+            
+            const recentActivities = activityLog.filter(log => {
+                return log.timestamp > Date.now() - (7 * 24 * 60 * 60 * 1000); 
+            }); 
+
+            const activityList = recentActivities.map(log => {
+                let icon, color, value;
+                
+                if (log.type === 'Water') {
+                    icon = 'droplet';
+                    color = 'text-blue-400';
+                    value = `+${log.amount} L`;
+                } else if (log.type === 'Meal') {
+                    icon = 'apple';
+                    color = 'text-red-400';
+                    value = `+${log.calories} Kcal`;
+                } else if (log.type === 'Sleep') {
+                    icon = 'moon';
+                    color = 'text-purple-400';
+                    value = `${log.duration} hrs (${log.quality}/5)`;
+                } else if (log.type === 'StepWalk') {
+                    icon = 'walk';
+                    color = 'text-yellow-400';
+                    value = `+${log.steps} Steps`;
+                } else if (log.type === 'Vitals') {
+                    icon = 'heart-pulse';
+                    color = '#F06292';
+                    value = `${log.bp} BP, ${log.hr} HR`;
+                } else if (log.type === 'Cycle') {
+                    icon = 'circle-dot';
+                    color = '#F06292';
+                    value = log.detail;
+                } else {
+                    // Logged Workout Activity
+                    icon = log.type === 'Running' ? 'footsteps' : log.type === 'Yoga' ? 'leaf' : 'dumbbell';
+                    color = 'text-green-400';
+                    value = `${log.calories} Kcal Burned`;
+                }
+
+                const logDate = new Date(log.timestamp);
+                const dateLabel = logDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                const timeLabel = logDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                
+                return `
+                    <div class="flex justify-between items-center p-3 hover:bg-gray-700/50 transition-colors border-b border-divider-color last:border-b-0">
+                        <div class="flex items-center space-x-4">
+                            <i data-lucide="${icon}" class="w-6 h-6 ${color}"></i>
+                            <div>
+                                <p class="font-medium text-white">${log.type}</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                           <p class="text-sm font-semibold text-white">${value}</p>
+                           <p class="text-xs text-gray-500">${dateLabel} ${timeLabel}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            // F4: Weekly Summary & F5: Goal Tally (F4 is already calculated in renderHome, reusing logic)
+            const weeklySteps = activityLog.reduce((sum, log) => sum + (log.steps || 0), 0);
+            const weeklyCaloriesBurned = activityLog.reduce((sum, log) => sum + (log.calories || 0), 0);
+            const weeklyMoveMinutes = activityLog.reduce((sum, log) => sum + (log.duration ? parseInt(log.duration) : 0), 0);
+            const goalsHit = 5; // Mock goals hit (F5)
+
+            return `
+                <div class="space-y-4">
+                    <h2 class="text-3xl font-extrabold mb-2 text-white">Journal</h2>
+                    
+                    <!-- F10: Filter Buttons -->
+                    <div class="flex space-x-2 overflow-x-auto pb-2">
+                        <button onclick="window.handleJournalFilter('All')" class="text-sm px-3 py-1 rounded-full bg-gray-700 text-white hover:bg-gray-600">All</button>
+                        <button onclick="window.handleJournalFilter('Workouts')" class="text-sm px-3 py-1 rounded-full bg-gray-700 text-white hover:bg-gray-600">Workouts</button>
+                        <button onclick="window.handleJournalFilter('Nutrition')" class="text-sm px-3 py-1 rounded-full bg-gray-700 text-white hover:bg-gray-600">Nutrition</button>
+                        <button onclick="window.handleJournalFilter('Sleep')" class="text-sm px-3 py-1 rounded-full bg-gray-700 text-white hover:bg-gray-600">Sleep</button>
+                        <button onclick="window.handleJournalFilter('Mood')" class="text-sm px-3 py-1 rounded-full bg-gray-700 text-white hover:bg-gray-600">Mood</button>
+                    </div>
+
+                    <!-- F4: Weekly Summary Card -->
+                    <div class="p-4 rounded-xl shadow-lg" style="background-color: var(--card-bg);">
+                        <h3 class="text-lg font-medium text-white mb-3">Weekly Summary (7 days)</h3>
+                        <div class="grid grid-cols-3 text-center border-b border-divider-color pb-3">
+                            <div><p class="font-bold text-lg text-white">${(weeklySteps / 1000).toFixed(1)}k</p><p class="text-xs text-gray-400">Steps</p></div>
+                            <div><p class="font-bold text-lg text-white">${weeklyCaloriesBurned}k</p><p class="text-xs text-gray-400">Burned</p></div>
+                            <div><p class="font-bold text-lg text-white">${Math.floor(weeklyMoveMinutes / 60)} hrs</p><p class="text-xs text-gray-400">Move</p></div>
+                        </div>
+                        <!-- F5: Goal Tally -->
+                        <div class="flex justify-between items-center pt-3">
+                            <p class="text-sm font-semibold text-white">Daily Goal Hit Rate</p>
+                            <span class="text-base font-bold text-green-400">${goalsHit}/7 Days</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="grid grid-cols-3 gap-4">
+                        <button onclick="window.openMoodModal()" 
+                                class="py-2 rounded-xl text-sm font-bold text-white transition-colors"
+                                style="background-color: #7E57C2; border: 1px solid #7E57C2;">
+                            <i data-lucide="smile" class="w-4 h-4 inline mr-1"></i> Mood
+                        </button>
+                        <button onclick="window.openSleepModal()" 
+                                class="py-2 rounded-xl text-sm font-bold text-white transition-colors"
+                                style="background-color: #448AFF; border: 1px solid #448AFF;">
+                            <i data-lucide="moon" class="w-4 h-4 inline mr-1"></i> Sleep
+                        </button>
+                        <button onclick="window.openActivityModal('Workout')" 
+                                class="py-2 rounded-xl text-sm font-bold text-white transition-colors"
+                                style="background-color: var(--accent-primary); color: var(--dark-bg);">
+                            <i data-lucide="plus" class="w-4 h-4 inline mr-1"></i> Workout
+                        </button>
+                    </div>
+
+                    ${recentActivities.length === 0 ? `
+                        <div class="flex flex-col items-center justify-center text-center p-12 mt-10 rounded-xl" style="background-color: var(--card-bg);">
+                            <i data-lucide="clipboard-list" class="w-12 h-12 mb-4 text-gray-500"></i>
+                            <p class="text-white text-lg font-medium">A personal record of your activities</p>
+                            <p class="text-gray-400 text-sm mt-1">Find the workouts that you add or track here.</p>
+                        </div>
+                    ` : `
+                        <div class="rounded-xl shadow-lg" style="background-color: var(--card-bg);">
+                            <div class="p-3">
+                                ${activityList}
+                            </div>
+                        </div>
+                    `}
+                </div>
+            `;
+        };
+        
+        // --- New Render Functions for Functional Browse Menu ---
+        
+        window.handleCategoryClick = (categoryName, icon, color) => {
+            window.activeCategory = { name: categoryName, icon: icon, color: color };
+            window.renderTab('category_detail');
+        };
+
+        const renderBrowse = () => {
+            const categories = [
+                { name: "Activity", icon: "footsteps", color: "#00BFA5" },
+                { name: "Body measurements", icon: "ruler", color: "#448AFF" },
+                { name: "Vitals", icon: "heart-pulse", color: "#F06292" },
+                { name: "Nutrition", icon: "utensils", color: "#FFB300" },
+                { name: "Sleep", icon: "moon", color: "#7E57C2" },
+                { name: "Cycle tracking", icon: "circle-dot", color: "#D81B60" },
+            ];
+
+            const categoryList = categories.map(cat => `
+                <div class="flex items-center list-group-item border-b border-divider-color last:border-b-0"
+                     onclick="window.handleCategoryClick('${cat.name}', '${cat.icon}', '${cat.color}')">
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center mr-4" style="background-color: ${cat.color}33;">
+                        <i data-lucide="${cat.icon}" class="w-5 h-5" style="color: ${cat.color};"></i>
+                    </div>
+                    <p class="text-base">${cat.name}</p>
+                    <i data-lucide="chevron-right" class="w-5 h-5 text-gray-500 ml-auto"></i>
+                </div>
+            `).join('');
+
+            return `
+                <div class="space-y-6">
+                    <div class="relative">
+                        <input type="text" placeholder="Search health data" class="input-field w-full py-3 pl-12 pr-4 rounded-full text-base" style="background-color: var(--card-bg);">
+                        <i data-lucide="search" class="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500"></i>
+                    </div>
+
+                    <div class="rounded-xl p-4 shadow-lg" style="background-color: var(--card-bg);">
+                        ${categoryList}
+                    </div>
+                </div>
+            `;
+        };
+        
+        const renderCategoryDetail = (category) => {
+            
+            const renderMockChart = (dataLabel, primaryValue) => `
+                <div class="mt-4 p-4 rounded-xl shadow-inner" style="background-color: #1A1A1A;">
+                    <h4 class="text-sm text-gray-400 mb-2">Trend: Last 7 Days</h4>
+                    <div class="flex justify-around items-end h-20">
+                        ${[20, 45, 60, 30, 75, 50, 90].map((h, i) => `
+                            <div class="w-3 rounded-t-full transition-all duration-500" 
+                                 style="height: ${h}%; background-color: ${i === 6 ? category.color : '#383838'};">
+                            </div>
+                        `).join('')}
+                    </div>
+                    <p class="text-xl font-bold mt-4">${primaryValue}</p>
+                    <p class="text-sm text-gray-400">${dataLabel} Tracked</p>
+                </div>
+            `;
+            
+            const isVitals = category.name === 'Vitals';
+            const isNutrition = category.name === 'Nutrition';
+            const isActivity = category.name === 'Activity';
+            const isSleep = category.name === 'Sleep';
+            const isBody = category.name === 'Body measurements';
+            const isCycle = category.name === 'Cycle tracking';
+            
+            let currentMetric = '---';
+            let secondaryAction = '';
+            let metricDescription = 'Current status';
+
+            if (isVitals) {
+                const lastLog = activityLog.find(log => log.type === 'Vitals');
+                currentMetric = lastLog ? `${lastLog.bp} BP, ${lastLog.hr} HR` : '120/80 BP';
+                metricDescription = `Last logged Heart Rate`;
+                secondaryAction = `<button onclick="window.openVitalsModal()" class="w-full py-2 rounded-lg font-bold text-white transition-colors mt-4" style="background-color: ${category.color};"><i data-lucide="plus" class="w-4 h-4 inline mr-1"></i> Log Vitals</button>`;
+            } else if (isNutrition) {
+                currentMetric = `${currentDayStats.caloriesConsumed} Kcal`;
+                metricDescription = `Consumed out of ${userProfile.calorieGoal} Kcal budget`;
+                secondaryAction = `<button onclick="window.openCalorieModal()" class="w-full py-2 rounded-lg font-bold text-white transition-colors mt-4" style="background-color: ${category.color};"><i data-lucide="plus" class="w-4 h-4 inline mr-1"></i> Log Meal</button>`;
+            } else if (isActivity) {
+                 currentMetric = `${currentDayStats.steps.toLocaleString()} Steps`;
+                 metricDescription = `Progress toward ${userProfile.stepGoal} goal`;
+                 secondaryAction = `<button onclick="window.openWalkModal()" class="w-full py-2 rounded-lg font-bold text-white transition-colors mt-4" style="background-color: ${category.color};"><i data-lucide="walk" class="w-4 h-4 inline mr-1"></i> Record Walk</button>`;
+            } else if (isSleep) {
+                const lastLog = activityLog.find(log => log.type === 'Sleep');
+                currentMetric = lastLog ? `${lastLog.duration} Hrs` : '8.0 Hrs';
+                metricDescription = `Last logged sleep duration`;
+                secondaryAction = `<button onclick="window.openSleepModal()" class="w-full py-2 rounded-lg font-bold text-white transition-colors mt-4" style="background-color: ${category.color};"><i data-lucide="plus" class="w-4 h-4 inline mr-1"></i> Log Sleep</button>`;
+            } else if (isBody) {
+                currentMetric = `${userProfile.weightKg} kg`;
+                metricDescription = `Current weight`;
+                secondaryAction = `<button onclick="window.openWeightModal()" class="w-full py-2 rounded-lg font-bold text-white transition-colors mt-4" style="background-color: ${category.color};"><i data-lucide="plus" class="w-4 h-4 inline mr-1"></i> Log Weight</button>`;
+            } else if (isCycle) {
+                const lastLog = activityLog.find(log => log.type === 'Cycle');
+                currentMetric = lastLog ? lastLog.detail : 'No Recent Log';
+                metricDescription = `Last tracked flow`;
+                secondaryAction = `<button onclick="window.openCycleModal()" class="w-full py-2 rounded-lg font-bold text-white transition-colors mt-4" style="background-color: ${category.color};"><i data-lucide="plus" class="w-4 h-4 inline mr-1"></i> Log Cycle</button>`;
+            } else {
+                 secondaryAction = `<button onclick="window.showMessage('Mock Action', 'Logging data for ${category.name} is mocked.')" class="w-full py-2 rounded-lg font-bold text-white transition-colors mt-4" style="background-color: ${category.color};"><i data-lucide="plus" class="w-4 h-4 inline mr-1"></i> Log Data</button>`;
+            }
+
+            return `
+                <div class="space-y-6">
+                    <div class="flex items-center space-x-3 mb-6">
+                        <i data-lucide="chevron-left" class="w-6 h-6 text-white cursor-pointer" onclick="window.renderTab('browse')"></i>
+                        <h2 class="text-3xl font-normal text-white">${category.name}</h2>
+                    </div>
+
+                    <!-- Header Metric Card -->
+                    <div class="p-5 rounded-xl shadow-lg border-t-4" style="background-color: var(--card-bg); border-color: ${category.color};">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="flex items-center">
+                                <i data-lucide="${category.icon}" class="w-8 h-8 mr-3" style="color: ${category.color};"></i>
+                                <div>
+                                    <p class="text-lg font-semibold text-white">Daily Summary</p>
+                                    <p class="text-xs text-gray-500">${metricDescription}</p>
+                                </div>
+                            </div>
+                            <p class="text-xl font-bold text-white">${currentMetric}</p>
+                        </div>
+                        
+                        <!-- Dynamic Mock Chart -->
+                        ${renderMockChart(category.name, currentMetric)}
+                        ${secondaryAction}
+                    </div>
+
+                    <!-- Related Actions -->
+                    <div class="rounded-xl p-4 shadow-lg" style="background-color: var(--card-bg);">
+                        <h3 class="text-lg font-medium text-gray-300 border-b border-divider-color pb-2 mb-3">Historical Data</h3>
+                        
+                        <button class="w-full py-2 text-left text-white flex justify-between items-center hover:bg-gray-700/50 rounded-lg px-2 transition-colors">
+                            View Historical Data <i data-lucide="line-chart" class="w-5 h-5 text-gray-400"></i>
+                        </button>
+                        <button class="w-full py-2 text-left text-white flex justify-between items-center hover:bg-gray-700/50 rounded-lg px-2 transition-colors">
+                            Connect Data Source <i data-lucide="plug-zap" class="w-5 h-5 text-gray-400"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        };
+
+
+        const renderProfile = () => {
+            let bmiCategory = 'Healthy Weight';
+            let bmiColor = 'text-green-400';
+            if (userProfile.bmi < 18.5) { bmiCategory = 'Underweight'; bmiColor = 'text-yellow-500'; }
+            else if (userProfile.bmi >= 25) { bmiCategory = 'Overweight'; bmiColor = 'text-red-500'; }
+            
+            return `
+                <div class="space-y-6">
+                    
+                    <div class="flex justify-between items-center px-2">
+                        <h2 class="text-3xl font-normal text-white">Profile</h2>
+                        <i data-lucide="settings" class="w-6 h-6 text-gray-400 cursor-pointer hover:text-white" onclick="window.renderTab('settings')"></i>
+                    </div>
+
+                    <div class="p-4 rounded-xl shadow-lg" style="background-color: var(--card-bg);">
+                        <form id="profileForm" class="space-y-4">
+                            
+                            <!-- F3: BMI Status & F20: BMI Info Link -->
+                            <div class="flex justify-between items-center border-b border-divider-color pb-3 mb-4">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-400">Current BMI</p>
+                                    <p class="text-2xl font-bold ${bmiColor}">${userProfile.bmi} <span class="text-sm font-normal text-gray-400">(${bmiCategory})</span></p>
+                                </div>
+                                <button type="button" onclick="window.showBmiInfo()" class="text-sm font-bold text-white py-1 px-3 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors">
+                                    BMI Info
+                                </button>
+                            </div>
+                            
+                            <!-- Name Editing (NEW FEATURE) -->
+                            <div class="flex justify-between items-center border-b border-divider-color pb-3">
+                                <p class="list-group-header">User Details</p>
+                                <button type="button" onclick="window.openEditNameModal()" class="text-xs text-white py-1 px-3 rounded-full bg-accent-primary hover:bg-green-600 transition-colors">
+                                    Edit Name
+                                </button>
+                            </div>
+                            
+                            <!-- F8: Goal Setup Button -->
+                            <div class="flex justify-between items-center border-b border-divider-color pb-3">
+                                <p class="list-group-header">Activity goals</p>
+                                <button type="button" onclick="window.openActivityGoalModal()" class="text-xs text-white py-1 px-3 rounded-full bg-accent-primary hover:bg-green-600 transition-colors">
+                                    Edit Goals
+                                </button>
+                            </div>
+                            
+                            <!-- F6: About You Details -->
+                            <p class="list-group-header">About you</p>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="profileAge" class="block text-sm font-medium text-gray-400 mb-1">Age (Yrs)</label>
+                                    <input type="number" id="profileAge" value="${userProfile.age}"
+                                           class="input-field w-full px-4 py-2 rounded-lg text-white" min="1" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-1">Gender (F6 Mock)</label>
+                                    <select id="profileGender" class="input-field w-full px-4 py-2 rounded-lg text-white">
+                                        <option ${userProfile.gender === 'Male' ? 'selected' : ''}>Male</option>
+                                        <option ${userProfile.gender === 'Female' ? 'selected' : ''}>Female</option>
+                                        <option ${userProfile.gender === 'Other' ? 'selected' : ''}>Other</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="profileWeight" class="block text-sm font-medium text-gray-400 mb-1">Weight (kg)</label>
+                                    <input type="number" id="profileWeight" value="${userProfile.weightKg}"
+                                           class="input-field w-full px-4 py-2 rounded-lg text-white" min="10" step="0.1" required>
+                                </div>
+                                <div>
+                                    <label for="profileHeight" class="block text-sm font-medium text-gray-400 mb-1">Height (cm)</label>
+                                    <input type="number" id="profileHeight" value="${userProfile.heightCm}"
+                                           class="input-field w-full px-4 py-2 rounded-lg text-white" min="50" required>
+                                </div>
+                            </div>
+
+                            <p class="list-group-header">Hydration and Nutrition</p>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="profileWaterGoal" class="block text-sm font-medium text-gray-400 mb-1">Water Goal (L)</label>
+                                    <input type="number" id="profileWaterGoal" value="${userProfile.waterGoal}"
+                                           class="input-field w-full px-4 py-2 rounded-lg text-white" min="0.5" step="0.1">
+                                </div>
+                                <div>
+                                    <label for="profileCalorieGoal" class="block text-sm font-medium text-gray-400 mb-1">Calorie Goal (Kcal)</label>
+                                    <input type="number" id="profileCalorieGoal" value="${userProfile.calorieGoal}"
+                                           class="input-field w-full px-4 py-2 rounded-lg text-white" min="1000" step="50">
+                                </div>
+                            </div>
+                            
+                            <!-- F19: Last Updated Status -->
+                            <p class="text-xs text-gray-500 pt-2">Profile Last Updated: ${new Date(userProfile.lastUpdated).toLocaleDateString()}</p>
+
+                            <!-- Save Button -->
+                            <button type="submit" id="saveProfileBtn"
+                                    class="w-full py-3 rounded-xl font-bold text-lg shadow-xl transition-all duration-200 transform active:scale-95 mt-4"
+                                    style="background-color: var(--accent-primary); color: var(--dark-bg);">
+                                SAVE PERSONAL METRICS
+                            </button>
+                            <p id="saveMessage" class="text-center text-sm mt-2 text-green-400 opacity-0 transition-opacity duration-300">Data Saved!</p>
+                        </form>
+                    </div>
+                </div>
+            `;
+        };
+
+        const attachProfileListeners = () => {
+            const form = document.getElementById('profileForm');
+            if (form) {
+                form.onsubmit = (e) => {
+                    e.preventDefault();
+                    
+                    const newProfile = {
+                        ...userProfile, // Preserve existing fields like name, goals, etc.
+                        age: parseInt(document.getElementById('profileAge').value, 10),
+                        heightCm: parseInt(document.getElementById('profileHeight').value, 10),
+                        weightKg: parseFloat(document.getElementById('profileWeight').value),
+                        goal: document.getElementById('profileGoal').value,
+                        gender: document.getElementById('profileGender').value,
+                        // Goals are preserved via ...userProfile, but strict reading prevents accidental overwrite if logic changed elsewhere
+                        // Actually, name is not in this form (it's in a modal), so ...userProfile is crucial.
+                    };
+
+                    saveProfile(newProfile);
+
+                    const saveMessage = document.getElementById('saveMessage');
+                    saveMessage.classList.remove('opacity-0');
+                    setTimeout(() => {
+                        saveMessage.classList.add('opacity-0');
+                    }, 2000);
+                };
+            }
+        };
+
+
+        const renderSettings = () => {
+            return `
+                <div class="space-y-6">
+                    <h2 class="text-3xl font-normal mb-6 text-white">Settings</h2>
+
+                    <!-- Units Section (F7: Unit Toggle Mock) -->
+                    <div class="space-y-1">
+                        <div class="flex justify-between items-center pb-2 border-b border-divider-color">
+                             <p class="list-group-header">Units</p>
+                             <button class="text-xs text-white py-1 px-3 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors" onclick="window.showMessage('Unit Toggle', 'Feature F7: Toggling unit system (Metric/Imperial) is mocked.')">
+                                 Metric
+                            </button>
+                        </div>
+                       
+                        <div class="list-group-item border-b border-divider-color">
+                            <p class="text-base">Height</p>
+                            <p class="text-sm text-gray-400">Centimetres</p>
+                        </div>
+                        <div class="list-group-item border-b border-divider-color">
+                            <p class="text-base">Weight</p>
+                            <p class="text-sm text-gray-400">Kilograms</p>
+                        </div>
+                        <div class="list-group-item border-b border-divider-color">
+                            <p class="text-base">Distance</p>
+                            <p class="text-sm text-gray-400">Kilometres</p>
+                        </div>
+                        <div class="list-group-item border-b border-divider-color">
+                            <p class="text-base">Energy</p>
+                            <p class="text-sm text-gray-400">Calories</p>
+                        </div>
+                    </div>
+
+                    <!-- Tracking Preferences Section -->
+                    <div class="space-y-1">
+                         <p class="list-group-header">Account & Data</p>
+
+                         <!-- F11: Data Export Mock -->
+                         <div class="list-group-item border-b border-divider-color" onclick="window.showMessage('Data Feature', 'Feature F11: Data Export feature is mocked.')">
+                            <p class="text-base">Export Your Data</p>
+                         </div>
+                         <!-- F12: Privacy Controls Mock -->
+                         <div class="list-group-item border-b border-divider-color" onclick="window.showMessage('Data Feature', 'Feature F12: Privacy Controls feature is mocked.')">
+                            <p class="text-base">Manage Privacy Controls</p>
+                         </div>
+                         <!-- NEW FEATURE: Delete All Data -->
+                         <div class="list-group-item border-b border-divider-color text-red-500" onclick="window.deleteAllData()">
+                            <p class="text-base">Delete All Tracking Data (Hard Reset)</p>
+                         </div>
+                    </div>
+                    
+                    <p class="text-center text-xs text-gray-600 pt-4">Ascend Fit Tracker v4.0 | Professional Feature Set</p>
+                </div>
+            `;
+        };
+
+        // --- Initialization ---
+
+        const setupNavigation = () => {
+            document.querySelectorAll('.nav-button').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    document.querySelectorAll('.nav-button').forEach(btn => btn.classList.remove('active'));
+                    e.currentTarget.classList.add('active');
+                    const tab = e.currentTarget.dataset.tab;
+                    renderTab(tab);
+                });
+            });
+
+            document.querySelector('.nav-button[data-tab="home"]').classList.add('active');
+        };
+
+        window.onload = () => {
+            setupNavigation();
+            initializeFirebase();
+        };
+
+    </script>
+</body>
+</html>
